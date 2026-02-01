@@ -3,6 +3,15 @@ from tkinter import filedialog, messagebox
 import vlc
 import platform
 
+import queue
+import paho.mqtt.client as mqtt
+
+BROKER = "vlsync.drish-shel.com"
+PORT = 443
+TOPIC = "vlsync/test"
+
+msg_queue = queue.Queue()
+
 
 class VideoPlayerGUI:
     def __init__(self, root):
@@ -165,8 +174,39 @@ class VideoPlayerGUI:
         if self.is_fullscreen:
             self.toggle_fullscreen()
 
+    def handle_mqtt_event(self, event):
+        while not msg_queue.empty():
+            msg = msg_queue.get()
+            self.toggle_play()
+
+
+def on_message(client, userdata, msg):
+    msg_queue.put(msg.payload.decode())
+    root.event_generate("<<MQTTMessage>>", when="tail")
+
+
+def connect_with_retry():
+    attempt = 0
+    while attempt < 20:
+        try:
+            client.connect(BROKER, PORT)
+            return
+        except Exception as e:
+            attempt += 1
+
 
 if __name__ == "__main__":
+
     root = ctk.CTk()
     app = VideoPlayerGUI(root)
+    root.bind("<<MQTTMessage>>", app.handle_mqtt_event)
+    client = mqtt.Client(transport="websockets")
+    client.tls_set()
+    client.ws_set_options(path="/mqtt")
+    client.on_message = on_message
+
+    connect_with_retry()
+    client.subscribe(TOPIC)
+    client.loop_start()
+
     root.mainloop()

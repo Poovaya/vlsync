@@ -21,7 +21,8 @@ class VideoPlayerGUI:
         self.is_fullscreen = False
 
         # ---- VLC ----
-        self.instance = vlc.Instance("--no-video-title-show", "--no-fullscreen")
+        self.instance = vlc.Instance(
+            "--no-video-title-show", "--no-fullscreen")
         self.player = self.instance.media_player_new()
 
         # ---- Video Frame ----
@@ -181,15 +182,16 @@ class VideoPlayerGUI:
         other_system_time = data.get("system_time")
         my_system_time = time.time()
         network_delay = my_system_time - other_system_time
-        if action == True and not self.is_playing:
-            self.toggle_play()
-            self.player.set_time(int((media_time + network_delay) * 1000))
+        if action == True:
+            self.player.set_time(media_time + int(network_delay*1000))
+            self.player.play()
         elif action == False and self.is_playing:
-            self.toggle_play()
-            self.player.set_time(int((media_time - network_delay) * 1000))
+            self.player.set_time(media_time)
+            self.player.pause()
 
     # ---------------- HELPERS ----------------
     def _emit(self, action, media_time, system_time):
+        print(media_time)
         if self.on_action:
             payload = {
                 "action": action,

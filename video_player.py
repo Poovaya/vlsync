@@ -183,10 +183,10 @@ class VideoPlayerGUI:
         network_delay = my_system_time - other_system_time
         if action == True and not self.is_playing:
             self.toggle_play()
-            self.player.set_time((media_time + network_delay) * 1000)
+            self.player.set_time(int((media_time + network_delay) * 1000))
         elif action == False and self.is_playing:
             self.toggle_play()
-            self.player.set_time((media_time - network_delay) * 1000)
+            self.player.set_time(int((media_time - network_delay) * 1000))
 
     # ---------------- HELPERS ----------------
     def _emit(self, action, media_time, system_time):

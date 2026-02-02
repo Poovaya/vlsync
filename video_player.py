@@ -4,6 +4,7 @@ from tkinter import filedialog, messagebox
 import vlc
 import platform
 import time
+import pinger
 
 
 class VideoPlayerGUI:
@@ -21,8 +22,7 @@ class VideoPlayerGUI:
         self.is_fullscreen = False
 
         # ---- VLC ----
-        self.instance = vlc.Instance(
-            "--no-video-title-show", "--no-fullscreen")
+        self.instance = vlc.Instance("--no-video-title-show", "--no-fullscreen")
         self.player = self.instance.media_player_new()
 
         # ---- Video Frame ----
@@ -126,18 +126,18 @@ class VideoPlayerGUI:
             action = "play"
 
         self.is_playing = not self.is_playing
-        self._emit(self.is_playing, self.player.get_time(), time.time())
+        self._emit(self.is_playing, self.player.get_time(), pinger.get_average())
 
     def seek_relative(self, seconds):
         current = self.player.get_time()
         if current >= 0:
             self.player.set_time(max(0, current + seconds * 1000))
-            self._emit(self.is_playing, self.player.get_time(), time.time())
+            self._emit(self.is_playing, self.player.get_time(), pinger.get_average())
 
     def jump_to_time(self, seconds):
         try:
             self.player.set_time(seconds * 1000)
-            self._emit(self.is_playing, self.player.get_time(), time.time())
+            self._emit(self.is_playing, self.player.get_time(), pinger.get_average())
         except ValueError:
             messagebox.showerror("Invalid time", "Use seconds or mm:ss")
 
@@ -177,25 +177,26 @@ class VideoPlayerGUI:
 
     # ---------------- MQTT INBOUND ----------------
     def handle_remote_action(self, data):
+        ping = pinger.get_average()
         action = data.get("action")
         media_time = data.get("media_time")
-        other_system_time = data.get("system_time")
+        other_system_ping = data.get("ping")
         my_system_time = time.time()
-        network_delay = my_system_time - other_system_time
         if action == True:
-            self.player.set_time(media_time + int(network_delay*1000))
-            self.player.play()
-        elif action == False and self.is_playing:
+            self.player.set_time(media_time + int(ping + other_system_ping))
+            self.player.set_pause(0)
+            self.is_playing = True
+        elif action == False:
             self.player.set_time(media_time)
-            self.player.pause()
+            self.player.set_pause(1)
+            self.is_playing = False
 
     # ---------------- HELPERS ----------------
-    def _emit(self, action, media_time, system_time):
-        print(media_time)
+    def _emit(self, action, media_time, ping):
         if self.on_action:
             payload = {
                 "action": action,
                 "media_time": media_time,
-                "system_time": system_time,
+                "ping": ping,
             }
             self.on_action(payload)

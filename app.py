@@ -21,9 +21,8 @@ def main():
     app = VideoPlayerGUI(root, on_action=publish_action)
 
     def handle_mqtt_event(event):
-        for raw in mqtt_client.drain_messages():
-            data = json.loads(raw)
-            app.handle_remote_action(data.get("action"))
+        for data in mqtt_client.drain_messages():
+            app.handle_remote_action(data)
 
     root.bind(MQTT_EVENT, handle_mqtt_event)
     root.mainloop()

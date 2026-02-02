@@ -6,6 +6,7 @@ import paho.mqtt.client as mqtt
 
 from events import MQTT_TOPIC, SENDER_ID
 
+
 class MQTTClient:
     def __init__(self, root, broker, port):
         self.root = root
@@ -31,7 +32,7 @@ class MQTTClient:
                 self.client.subscribe(MQTT_TOPIC)
                 return
             except Exception:
-                time.sleep(1)
+                continue
         raise RuntimeError("MQTT connection failed")
 
     def publish(self, payload: dict):

@@ -181,15 +181,16 @@ class VideoPlayerGUI:
         action = data.get("action")
         media_time = data.get("media_time")
         other_system_ping = data.get("ping")
-        my_system_time = time.time()
         if action == True:
             self.player.set_time(media_time + int(ping + other_system_ping))
             self.player.set_pause(0)
             self.is_playing = True
+            self.play_btn.configure(text="Pause")
         elif action == False:
             self.player.set_time(media_time)
             self.player.set_pause(1)
             self.is_playing = False
+            self.play_btn.configure(text="Play")
 
     # ---------------- HELPERS ----------------
     def _emit(self, action, media_time, ping):

@@ -1,18 +1,30 @@
-const {
-  app,
-  BrowserWindow,
-  ipcMain,
-  dialog,
-  protocol,
-  net,
-} = require('electron');
-const path = require('node:path');
-const { pathToFileURL } = require('node:url');
+import { app, BrowserWindow, ipcMain, dialog, protocol } from 'electron';
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const MIME_TYPES = {
+  '.mp4':  'video/mp4',
+  '.mov':  'video/quicktime',
+  '.mkv':  'video/x-matroska',
+  '.avi':  'video/x-msvideo',
+  '.webm': 'video/webm',
+};
 
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'media',
-    privileges: { secure: true, standard: true, stream: true },
+    privileges: {
+      standard: true,
+      secure: true,
+      bypassCSP: true,
+      allowServiceWorkers: true,
+      supportFetchAPI: true,
+      stream: true,
+      corsEnabled: true,
+    },
   },
 ]);
 
@@ -32,11 +44,53 @@ function createWindow() {
 
 app.whenReady().then(() => {
   protocol.handle('media', (request) => {
-    const url = new URL(request.url);
-    const rawPath = decodeURIComponent(url.pathname.slice(1));
-    return net.fetch(pathToFileURL(rawPath).toString(), {
-      headers: Object.fromEntries(request.headers),
-    });
+    try {
+      const url = new URL(request.url);
+      const filePath = path.normalize(decodeURIComponent(url.pathname.slice(1)));
+
+      if (!fs.existsSync(filePath)) {
+        return new Response('File not found', { status: 404 });
+      }
+
+      const ext = path.extname(filePath).toLowerCase();
+      const mimeType = MIME_TYPES[ext] || 'application/octet-stream';
+      const stat = fs.statSync(filePath);
+      const fileSize = stat.size;
+      const range = request.headers.get('range');
+
+      const headers = {
+        'Content-Type': mimeType,
+        'Accept-Ranges': 'bytes',
+      };
+
+      if (range) {
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+
+        if (start >= fileSize || end >= fileSize) {
+          return new Response(null, { status: 416, headers });
+        }
+
+        const stream = fs.createReadStream(filePath, { start, end });
+        return new Response(stream, {
+          status: 206,
+          headers: {
+            ...headers,
+            'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+            'Content-Length': String(end - start + 1),
+          },
+        });
+      }
+
+      const stream = fs.createReadStream(filePath);
+      return new Response(stream, {
+        status: 200,
+        headers: { ...headers, 'Content-Length': String(fileSize) },
+      });
+    } catch (error) {
+      return new Response('Internal Server Error: ' + error.message, { status: 500 });
+    }
   });
 
   ipcMain.handle('open-file', async () => {

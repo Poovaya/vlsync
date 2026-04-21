@@ -9,23 +9,7 @@ export default function MediaPlayer() {
     if (!filePath) return;
     setVideoSrc(`media://app/${encodeURIComponent(filePath)}`);
   }
-
-  useEffect(() => {
-    function onKeyDown(e) {
-      const video = videoRef.current;
-      if (!video) return;
-      switch (e.key) {
-        case 'ArrowRight': video.currentTime += 5;                         e.preventDefault(); break;
-        case 'ArrowLeft':  video.currentTime -= 5;                         e.preventDefault(); break;
-        case 'ArrowUp':    video.volume = Math.min(1, video.volume + 0.1); e.preventDefault(); break;
-        case 'ArrowDown':  video.volume = Math.max(0, video.volume - 0.1); e.preventDefault(); break;
-        case ' ':          video.paused ? video.play() : video.pause();    e.preventDefault(); break;
-      }
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
-
+  
   return (
     <div style={{ padding: 20 }}>
       <button onClick={handleOpen}>Open video</button>

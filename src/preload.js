@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('remote-action', handler);
   },
 
+  getMqttStatus: () => ipcRenderer.invoke('get-mqtt-status'),
+
   // Register callback for MQTT connection status changes
   onMqttStatus: (callback) => {
     const handler = (_event, status) => callback(status);

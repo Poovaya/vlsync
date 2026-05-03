@@ -3,7 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { state as pinger } from './pinger';
-import { init as initMqtt, publish as mqttPublish } from './mqttSync';
+import { init as initMqtt, publish as mqttPublish, getStatus as mqttGetStatus } from './mqttSync';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -125,6 +125,7 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('get-ping', () => pinger.ping);
+  ipcMain.handle('get-mqtt-status', () => mqttGetStatus());
 
   createWindow();
 });

@@ -29,25 +29,24 @@ export default function MediaPlayer() {
       if (!video) return;
 
       const { action, media_time, ping: senderPing } = data;
-
-      // Compensate for sender's one-way network latency
+      const label = action === true ? 'play' : action === false ? 'pause' : 'seek';
       const adjustedSec = (media_time + (senderPing ?? 0)) / 1000;
+      console.log(`[sync] remote ${label}: raw=${(media_time/1000).toFixed(2)}s + ping=${senderPing}ms → seek to ${adjustedSec.toFixed(2)}s`);
 
       suppressRef.current = true;
-
       video.currentTime = adjustedSec;
 
       if (action === true) {
         video.play()
-          .catch(() => {})
+          .catch((e) => console.warn('[sync] play() blocked:', e.message))
           .finally(() => { suppressRef.current = false; });
       } else {
-        // pause or seek-only — reset suppress after current event loop tick
         Promise.resolve().then(() => { suppressRef.current = false; });
         if (action === false) video.pause();
       }
     });
 
+    window.electronAPI.getMqttStatus().then(setMqttStatus);
     const cleanStatus = window.electronAPI.onMqttStatus(setMqttStatus);
 
     // Poll ping display every 3 s

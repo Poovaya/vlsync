@@ -2,14 +2,16 @@ import { app, BrowserWindow, ipcMain, dialog, protocol } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { state as pinger } from './pinger';
+import { init as initMqtt, publish as mqttPublish } from './mqttSync';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const MIME_TYPES = {
-  '.mp4':  'video/mp4',
-  '.mov':  'video/quicktime',
-  '.mkv':  'video/x-matroska',
-  '.avi':  'video/x-msvideo',
+  '.mp4': 'video/mp4',
+  '.mov': 'video/quicktime',
+  '.mkv': 'video/x-matroska',
+  '.avi': 'video/x-msvideo',
   '.webm': 'video/webm',
 };
 
@@ -28,8 +30,10 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
+let win = null;
+
 function createWindow() {
-  const win = new BrowserWindow({
+  win = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
@@ -46,7 +50,9 @@ app.whenReady().then(() => {
   protocol.handle('media', (request) => {
     try {
       const url = new URL(request.url);
-      const filePath = path.normalize(decodeURIComponent(url.pathname.slice(1)));
+      const filePath = path.normalize(
+        decodeURIComponent(url.pathname.slice(1)),
+      );
 
       if (!fs.existsSync(filePath)) {
         return new Response('File not found', { status: 404 });
@@ -89,9 +95,16 @@ app.whenReady().then(() => {
         headers: { ...headers, 'Content-Length': String(fileSize) },
       });
     } catch (error) {
-      return new Response('Internal Server Error: ' + error.message, { status: 500 });
+      return new Response('Internal Server Error: ' + error.message, {
+        status: 500,
+      });
     }
   });
+
+  initMqtt(
+    (data) => win?.webContents.send('remote-action', data),
+    (status) => win?.webContents.send('mqtt-status', status),
+  );
 
   ipcMain.handle('open-file', async () => {
     const result = await dialog.showOpenDialog({
@@ -104,6 +117,14 @@ app.whenReady().then(() => {
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0];
   });
+
+  // cmd: 'play' | 'pause' | 'seek', mediaTimeMs: number
+  ipcMain.handle('sync-action', (_event, cmd, mediaTimeMs) => {
+    const action = cmd === 'play' ? true : cmd === 'pause' ? false : null;
+    mqttPublish(action, mediaTimeMs, pinger.ping ?? 0);
+  });
+
+  ipcMain.handle('get-ping', () => pinger.ping);
 
   createWindow();
 });

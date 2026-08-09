@@ -1,0 +1,7 @@
+node_modules/
+dist/
+media/
+*.local
+.DS_Store
+Thumbs.db
+vsync.config.json

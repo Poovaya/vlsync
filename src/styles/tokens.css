@@ -1,0 +1,103 @@
+/* Design tokens + reset. The whole app is dark-only by design: this is a
+   full-screen video surface, and a light theme would fight the content. */
+
+:root {
+  --brand: #e50914;
+  --brand-hover: #f6121d;
+
+  --bg: #000000;
+  --surface: #141414;
+  --surface-raised: #1f1f1f;
+  --border: rgba(255, 255, 255, 0.14);
+
+  --text: #ffffff;
+  --text-muted: rgba(255, 255, 255, 0.72);
+  --text-dim: rgba(255, 255, 255, 0.5);
+
+  --track: rgba(255, 255, 255, 0.28);
+  --track-buffered: rgba(255, 255, 255, 0.48);
+
+  --control-size: 2.6rem;
+  --bar-inline-pad: 3.5rem;
+
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --fade: 260ms var(--ease-out);
+
+  --font: "Netflix Sans", "Helvetica Neue", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#app {
+  height: 100%;
+  width: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+button:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: var(--brand);
+  color: #fff;
+}
+
+/* Thin, unobtrusive scrollbars inside menus and the library list. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 99px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

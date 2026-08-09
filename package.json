@@ -1,0 +1,21 @@
+{
+  "name": "vsync-player",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A Netflix-style web video player for files on your local drive.",
+  "scripts": {
+    "dev": "concurrently -n server,web -c magenta,cyan \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "node --watch server/index.ts",
+    "dev:web": "vite",
+    "build": "tsc --noEmit && vite build",
+    "start": "node server/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "concurrently": "^9.2.0",
+    "typescript": "^5.7.3",
+    "vite": "^7.1.3"
+  }
+}

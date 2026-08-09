@@ -1,0 +1,900 @@
+/* The Netflix play screen. Everything here is one full-viewport surface:
+   video underneath, a gradient scrim, and controls that fade on idle. */
+
+.player {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.player__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  display: block;
+}
+
+/* Native cue rendering sits too low once our control bar is up; lift it. */
+.player__video::cue {
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-family: var(--font);
+  font-size: 1em;
+  line-height: 1.35;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+}
+
+/* ---------------------------------------------------------------- scrims  */
+
+.player__scrim {
+  position: absolute;
+  inset-inline: 0;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity var(--fade);
+}
+
+.player__scrim--top {
+  top: 0;
+  height: 22vh;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0) 100%);
+}
+
+.player__scrim--bottom {
+  bottom: 0;
+  height: 38vh;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.86) 0%, rgba(0, 0, 0, 0.5) 38%, rgba(0, 0, 0, 0) 100%);
+}
+
+/* --------------------------------------------------------------- tapzone  */
+
+.player__tapzone {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  background: transparent;
+}
+
+/* ------------------------------------------------------------- idle state */
+
+.player[data-idle="true"] {
+  cursor: none;
+}
+
+.player[data-idle="true"] .player__scrim,
+.player[data-idle="true"] .player__top,
+.player[data-idle="true"] .player__bottom {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------- top  */
+
+.player__top {
+  position: absolute;
+  top: 0;
+  inset-inline: 0;
+  padding: 1.6rem var(--bar-inline-pad);
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  opacity: 1;
+  transition: opacity var(--fade);
+}
+
+/* The bars span the full width but should not swallow clicks meant for the
+   video underneath; only the actual controls opt back in. */
+.player__top,
+.player__bottom,
+.scrubber,
+.controls,
+.controls__title {
+  pointer-events: none;
+}
+
+.player__back,
+.scrubber__bar,
+.controls__group,
+.volume,
+.popover,
+.ctl {
+  pointer-events: auto;
+}
+
+.player__back {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  color: #fff;
+  transition: transform 140ms var(--ease-out), opacity 140ms var(--ease-out);
+}
+
+.player__back:hover {
+  transform: scale(1.12);
+}
+
+.player__back svg {
+  width: 2.4rem;
+  height: 2.4rem;
+}
+
+.player__toptitle {
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --------------------------------------------------------------- spinner  */
+
+.player__spinner {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center;
+  pointer-events: none;
+}
+
+.player[data-loading="true"] .player__spinner {
+  display: grid;
+}
+
+.player__spinner::after {
+  content: "";
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.22);
+  border-top-color: var(--brand);
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ----------------------------------------------------------------- flash  */
+/* The brief centre icon Netflix pops when you toggle play or skip. */
+
+.player__flash {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  display: grid;
+  place-items: center;
+  width: 7.5rem;
+  height: 7.5rem;
+  border-radius: 50%;
+  background: rgba(20, 20, 20, 0.65);
+  backdrop-filter: blur(2px);
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.player__flash svg {
+  width: 3.4rem;
+  height: 3.4rem;
+}
+
+.player__flash[data-animate="true"] {
+  animation: flash-pop 620ms var(--ease-out) forwards;
+}
+
+@keyframes flash-pop {
+  0% {
+    opacity: 0.95;
+    scale: 0.86;
+  }
+  55% {
+    opacity: 0.95;
+    scale: 1;
+  }
+  100% {
+    opacity: 0;
+    scale: 1.22;
+  }
+}
+
+/* ---------------------------------------------------------------- bottom  */
+
+.player__bottom {
+  position: absolute;
+  bottom: 0;
+  inset-inline: 0;
+  padding: 0 var(--bar-inline-pad) 1.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  opacity: 1;
+  transition: opacity var(--fade);
+}
+
+/* -------------------------------------------------------------- scrubber  */
+
+.scrubber {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.scrubber__bar {
+  position: relative;
+  flex: 1;
+  height: 1.5rem; /* generous hit area around a thin visual track */
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.scrubber__track {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--track);
+  overflow: hidden;
+  transition: height 120ms var(--ease-out);
+}
+
+.scrubber__bar:hover .scrubber__track,
+.scrubber[data-scrubbing="true"] .scrubber__track {
+  height: 7px;
+}
+
+.scrubber__buffered,
+.scrubber__progress {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  border-radius: 99px;
+  transform-origin: left center;
+}
+
+.scrubber__buffered {
+  background: var(--track-buffered);
+  width: 100%;
+  transform: scaleX(0);
+}
+
+.scrubber__progress {
+  background: var(--brand);
+  width: 100%;
+  transform: scaleX(0);
+}
+
+.scrubber__handle {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  translate: -50% -50%;
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 50%;
+  background: var(--brand);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+  scale: 0;
+  transition: scale 120ms var(--ease-out);
+  pointer-events: none;
+}
+
+.scrubber__bar:hover .scrubber__handle,
+.scrubber[data-scrubbing="true"] .scrubber__handle {
+  scale: 1;
+}
+
+.scrubber__time {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.92);
+  font-variant-numeric: tabular-nums;
+  min-width: 4.5ch;
+  text-align: right;
+}
+
+/* ---------------------------------------------------- scrub preview card  */
+
+.preview {
+  position: absolute;
+  bottom: calc(100% + 0.9rem);
+  left: 0;
+  translate: -50% 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.scrubber__bar:hover .preview,
+.scrubber[data-scrubbing="true"] .preview {
+  display: flex;
+}
+
+.preview__frame {
+  width: 15rem;
+  aspect-ratio: 16 / 9;
+  border-radius: 4px;
+  background: #000;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+  display: block;
+  object-fit: contain;
+}
+
+.preview[data-has-frame="false"] .preview__frame {
+  display: none;
+}
+
+.preview__time {
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+/* -------------------------------------------------------------- controls  */
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 1rem;
+  min-height: 3.2rem;
+}
+
+.controls__group {
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+}
+
+.controls__group--right {
+  justify-self: end;
+}
+
+.controls__title {
+  justify-self: center;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #fff;
+  max-width: 40vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.controls__title span {
+  color: var(--text-dim);
+  font-weight: 400;
+  margin-left: 0.6rem;
+}
+
+/* --------------------------------------------------------- icon buttons   */
+
+.ctl {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--control-size);
+  height: var(--control-size);
+  color: #fff;
+  transition: transform 130ms var(--ease-out), opacity 130ms var(--ease-out);
+}
+
+.ctl svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.ctl:hover,
+.ctl[aria-expanded="true"] {
+  transform: scale(1.14);
+}
+
+.ctl:disabled {
+  opacity: 0.35;
+  cursor: default;
+  transform: none;
+}
+
+.ctl--play {
+  width: 2.9rem;
+  height: 2.9rem;
+}
+
+/* Netflix-style tooltip above the icon. */
+.ctl[data-label]::after {
+  content: attr(data-label);
+  position: absolute;
+  bottom: calc(100% + 0.85rem);
+  left: 50%;
+  translate: -50% 0;
+  padding: 0.35rem 0.7rem;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 120ms var(--ease-out);
+  pointer-events: none;
+}
+
+.ctl[data-label]:hover::after {
+  opacity: 1;
+}
+
+/* Tooltips near the viewport edge would clip; pin them inside. */
+.controls__group--right .ctl:last-child[data-label]::after {
+  left: auto;
+  right: 0;
+  translate: 0 0;
+}
+
+/* ---------------------------------------------------------------- volume  */
+
+.volume {
+  display: flex;
+  align-items: center;
+}
+
+.volume__slider {
+  width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: width 200ms var(--ease-out), opacity 200ms var(--ease-out),
+    margin-left 200ms var(--ease-out);
+}
+
+.volume:hover .volume__slider,
+.volume:focus-within .volume__slider,
+.volume[data-open="true"] .volume__slider {
+  width: 6.5rem;
+  opacity: 1;
+  margin-left: 0.6rem;
+}
+
+.volume__bar {
+  position: relative;
+  height: 1.2rem;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.volume__track {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.volume__fill {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 100%;
+  background: #fff;
+  transform-origin: left center;
+  transform: scaleX(1);
+}
+
+.volume__handle {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  translate: -50% -50%;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: #fff;
+  pointer-events: none;
+}
+
+/* ----------------------------------------------------------------- menus  */
+
+.popover {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.menu {
+  position: absolute;
+  bottom: calc(100% + 1.1rem);
+  right: 0;
+  min-width: 13rem;
+  padding: 0.9rem 0;
+  border-radius: 4px;
+  background: rgba(20, 20, 20, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  display: none;
+  z-index: 10;
+  animation: menu-in 160ms var(--ease-out);
+}
+
+.menu[data-open="true"] {
+  display: block;
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+
+.menu__title {
+  padding: 0 1.6rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  width: 100%;
+  padding: 0.55rem 1.6rem;
+  font-size: 1rem;
+  color: var(--text-muted);
+  text-align: left;
+  transition: color 120ms var(--ease-out), background 120ms var(--ease-out);
+}
+
+.menu__item:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.menu__item[aria-checked="true"] {
+  color: #fff;
+  font-weight: 600;
+}
+
+/* The check gutter keeps labels aligned whether or not a row is selected. */
+.menu__check {
+  width: 1rem;
+  flex: none;
+  opacity: 0;
+}
+
+.menu__item[aria-checked="true"] .menu__check {
+  opacity: 1;
+}
+
+.menu__check svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.menu--columns {
+  display: none;
+}
+
+.menu--columns[data-open="true"] {
+  display: grid;
+  gap: 0 1rem;
+}
+
+.menu--columns[data-columns="2"] {
+  grid-template-columns: 1fr 1fr;
+  min-width: 26rem;
+}
+
+.menu--columns[data-columns="1"] {
+  grid-template-columns: 1fr;
+  min-width: 14rem;
+}
+
+/* --------------------------------------------------------- speed control  */
+/* Netflix renders playback speed as a labelled track with detents. */
+
+.speed {
+  padding: 0.4rem 1.9rem 0.3rem;
+  min-width: 24rem;
+}
+
+.speed__track {
+  position: relative;
+  height: 3.2rem;
+  margin: 0.6rem 0 0.2rem;
+}
+
+.speed__line {
+  position: absolute;
+  top: 0.55rem;
+  inset-inline: 0;
+  height: 3px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.speed__fill {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  background: #fff;
+  border-radius: 99px;
+}
+
+.speed__stop {
+  position: absolute;
+  top: 0;
+  translate: -50% 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: color 120ms var(--ease-out);
+}
+
+.speed__stop::before {
+  content: "";
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-top: 0.35rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+  transition: background 120ms var(--ease-out), scale 120ms var(--ease-out);
+}
+
+.speed__stop:hover {
+  color: #fff;
+}
+
+.speed__stop[aria-checked="true"] {
+  color: #fff;
+  font-weight: 700;
+}
+
+.speed__stop[aria-checked="true"]::before {
+  background: #fff;
+  scale: 1.45;
+}
+
+/* ----------------------------------------------------------------- toast  */
+
+.toast {
+  position: absolute;
+  bottom: 9.5rem;
+  left: var(--bar-inline-pad);
+  padding: 0.7rem 1.1rem;
+  border-radius: 4px;
+  background: rgba(20, 20, 20, 0.9);
+  border-left: 3px solid var(--brand);
+  color: #fff;
+  font-size: 0.95rem;
+  opacity: 0;
+  translate: 0 8px;
+  pointer-events: none;
+  transition: opacity 220ms var(--ease-out), translate 220ms var(--ease-out);
+  max-width: min(28rem, 60vw);
+}
+
+.toast[data-visible="true"] {
+  opacity: 1;
+  translate: 0 0;
+}
+
+/* ---------------------------------------------------------------- notice  */
+/* Codec problems the browser cannot solve. Deliberately outside the idle fade:
+   a silent video with no explanation reads as a broken player. */
+
+.notice {
+  position: absolute;
+  bottom: 9.5rem;
+  left: var(--bar-inline-pad);
+  right: var(--bar-inline-pad);
+  max-width: 46rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  padding: 1rem 1.1rem;
+  border-radius: 4px;
+  background: rgba(20, 20, 20, 0.94);
+  border-left: 3px solid var(--brand);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  translate: 0 8px;
+  pointer-events: none;
+  transition: opacity 240ms var(--ease-out), translate 240ms var(--ease-out);
+  z-index: 15;
+}
+
+.notice[data-visible="true"] {
+  opacity: 1;
+  translate: 0 0;
+  pointer-events: auto;
+}
+
+.notice__icon {
+  flex: none;
+  width: 1.5rem;
+  color: var(--brand);
+  margin-top: 0.1rem;
+}
+
+.notice__icon svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.notice__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.notice__item + .notice__item {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.notice__message {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #fff;
+}
+
+.notice__fix {
+  display: block;
+  margin-top: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  overflow-x: auto;
+  white-space: pre;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.notice__close {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 3px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  line-height: 1;
+  transition: color 120ms var(--ease-out), background 120ms var(--ease-out);
+}
+
+.notice__close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ----------------------------------------------------------------- error  */
+
+.player__error {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  text-align: center;
+  padding: 2rem;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 20;
+}
+
+.player[data-error="true"] .player__error {
+  display: flex;
+}
+
+.player__error h2 {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.player__error p {
+  margin: 0;
+  max-width: 34rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.player__error code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+}
+
+.btn-primary {
+  margin-top: 0.5rem;
+  padding: 0.7rem 1.6rem;
+  border-radius: 4px;
+  background: #fff;
+  color: #000;
+  font-weight: 700;
+  font-size: 1rem;
+  transition: background 120ms var(--ease-out);
+}
+
+.btn-primary:hover {
+  background: rgba(255, 255, 255, 0.78);
+}
+
+/* --------------------------------------------------------------- responsive */
+
+@media (max-width: 900px) {
+  :root {
+    --bar-inline-pad: 1.25rem;
+    --control-size: 2.2rem;
+  }
+
+  .controls__title {
+    display: none;
+  }
+
+  .controls {
+    grid-template-columns: 1fr auto;
+  }
+
+  .controls__group {
+    gap: 1rem;
+  }
+
+  .preview__frame {
+    width: 10rem;
+  }
+
+  .menu--columns[data-open="true"] {
+    grid-template-columns: 1fr;
+    min-width: 15rem;
+  }
+
+  .speed {
+    min-width: 16rem;
+  }
+}

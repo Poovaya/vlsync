@@ -282,6 +282,12 @@ async function serveStatic(
   res.statusCode = 200;
   res.setHeader("Content-Type", STATIC_TYPES[path.extname(target).toLowerCase()] ?? "application/octet-stream");
   res.setHeader("Content-Length", String(body.byteLength));
+
+  // Asset filenames carry a content hash, so they can be cached hard. The HTML
+  // must not be: a stale index.html keeps pointing at the previous bundle, so a
+  // rebuild appears to change nothing.
+  const isHashedAsset = target.includes(`${path.sep}assets${path.sep}`);
+  res.setHeader("Cache-Control", isHashedAsset ? "public, max-age=31536000, immutable" : "no-cache");
   if (req.method === "HEAD") res.end();
   else res.end(body);
 }

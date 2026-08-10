@@ -79,6 +79,12 @@ export const icons = {
 
   back: stroke('<path d="M20 12H4.6M11.4 4.8 4.2 12l7.2 7.2"/>', 2.1),
 
+  /** Broadcast rings: reads as "this screen is talking to other screens". */
+  sync: wrap(
+    `<circle cx="12" cy="17.6" r="2.1" fill="currentColor"/>
+     <path d="M8.1 14.3a5.5 5.5 0 0 1 7.8 0M5 11.1a10 10 0 0 1 14 0" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>`,
+  ),
+
   check: stroke('<path d="M20 6.5 9.3 17.2 4 11.9"/>', 2.4),
 
   warning: wrap(

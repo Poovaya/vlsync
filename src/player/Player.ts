@@ -1,6 +1,8 @@
 import type { PlaybackSource } from "../types.ts";
 import { findCompatIssues, type CompatIssue } from "../compat.ts";
-import { prefsStore, progressStore, type Prefs } from "../storage.ts";
+import { prefsStore, progressStore, syncStore, type Prefs } from "../storage.ts";
+import { PlaybackSync } from "../sync/PlaybackSync.ts";
+import { SyncMenu } from "./SyncMenu.ts";
 import { clamp, clear, el, on } from "../util/dom.ts";
 import { formatTime } from "../util/format.ts";
 import { icons } from "./icons.ts";
@@ -45,6 +47,8 @@ export class Player {
   private readonly volume: VolumeControl;
   private readonly speedMenu: ReturnType<typeof createSpeedMenu>;
   private readonly subtitlesMenu: ReturnType<typeof createSubtitlesMenu>;
+  private readonly syncMenu: SyncMenu;
+  private readonly sync: PlaybackSync;
 
   private readonly playButton: HTMLButtonElement;
   private readonly nextButton: HTMLButtonElement;
@@ -110,6 +114,34 @@ export class Player {
       onOpenChange: (open) => this.trackMenu(open),
     });
 
+    const syncSettings = syncStore.load();
+
+    this.sync = new PlaybackSync({
+      video: this.video,
+      url: syncSettings.url,
+      topic: syncSettings.topic,
+      onStatusChange: (status, detail) => {
+        this.syncMenu.setStatus(status, detail, this.sync.latencyMs, this.sync.deviceId);
+        if (status === "error" && detail) this.showToast(`Sync: ${detail}`, 4000);
+      },
+      onNotice: (text) => this.showToast(text, 4000),
+    });
+
+    this.syncMenu = new SyncMenu({
+      onToggle: (enabled) => {
+        if (enabled) this.sync.enable();
+        else this.sync.disable();
+      },
+      // Changing broker or topic needs a fresh connection to take effect.
+      onSettingsChange: () => {
+        if (!this.sync.isEnabled) return;
+        this.showToast("Reconnecting to the new broker…", 2500);
+        this.sync.disable();
+        window.setTimeout(() => this.sync.enable(), 150);
+      },
+      onOpenChange: (open) => this.trackMenu(open),
+    });
+
     this.playButton = el("button", {
       class: "ctl ctl--play",
       type: "button",
@@ -170,6 +202,10 @@ export class Player {
     this.bindLifecycle();
 
     this.applyPrefs();
+
+    this.syncMenu.setStatus("offline", null, 0, this.sync.deviceId);
+    // Reconnect only if you turned sync on before; a fresh install stays local.
+    if (syncSettings.enabled) this.sync.enable();
   }
 
   /* --------------------------------------------------------------- view -- */
@@ -214,6 +250,7 @@ export class Player {
       el(
         "div",
         { class: "controls__group controls__group--right" },
+        this.syncMenu.popover.root,
         this.speedMenu.popover.root,
         this.subtitlesMenu.popover.root,
         this.prevButton,
@@ -297,10 +334,25 @@ export class Player {
     // the new media rather than briefly attaching to the old one.
     this.renderSubtitleTracks(source);
 
-    this.video.src = source.src;
+    // Every media element gets its own URL. Chrome keys its media buffer on the
+    // URL and shares it across the whole profile, so two elements on one URL —
+    // the player and its scrub preview, or the same file open in two tabs —
+    // fight over one buffer and can wedge at readyState 0 with no error. That
+    // second case is routine here, since syncing means watching the same file
+    // in several places at once.
+    const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+    this.video.src = withPlaybackNonce(source.src, nonce, "main");
     this.video.load();
 
-    this.scrubber.loadSource(source.previewSrc, source.likelyPlayable);
+    // Sync uses the bare filename to check both ends are on the same video;
+    // the full path differs per device.
+    this.sync.setMedia(source.filename);
+
+    this.scrubber.loadSource(
+      withPlaybackNonce(source.previewSrc, nonce, "preview"),
+      source.likelyPlayable,
+    );
     this.refreshMenus();
 
     void this.video.play().catch(() => {
@@ -883,6 +935,8 @@ export class Player {
 
     this.scrubber.dispose();
     this.volume.dispose();
+    this.sync.dispose();
+    this.syncMenu.popover.dispose();
     this.speedMenu.popover.dispose();
     this.subtitlesMenu.popover.dispose();
 
@@ -894,6 +948,17 @@ export class Player {
 
     document.title = "vsync";
   }
+}
+
+/**
+ * Make a stream URL unique to one media element. The server ignores unknown
+ * query parameters, so this only separates the browser's cache entries.
+ * Object URLs are already per-handle and cannot take a query string.
+ */
+function withPlaybackNonce(url: string, nonce: string, role: string): string {
+  if (url.startsWith("blob:")) return url;
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}c=${nonce}&r=${role}`;
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {

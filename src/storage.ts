@@ -128,6 +128,41 @@ export const prefsStore = {
   },
 };
 
+/* ----------------------------------------------------------------- sync -- */
+
+const SYNC_KEY = "vsync:sync:v1";
+
+export interface SyncSettings {
+  /** Opt-in: we do not reach out to an external broker until you say so. */
+  enabled: boolean;
+  /** MQTT over WebSockets — the only transport a browser can speak. */
+  url: string;
+  topic: string;
+}
+
+const DEFAULT_SYNC: SyncSettings = {
+  enabled: false,
+  // Matches the Mosquitto instance behind the Cloudflare tunnel that the
+  // existing vlsync Python client uses (sync.drish-shel.com:443, path /mqtt).
+  url: "wss://sync.drish-shel.com:443/mqtt",
+  topic: "vlsync/test",
+};
+
+export const syncStore = {
+  load(): SyncSettings {
+    const stored = readJson<Partial<SyncSettings>>(SYNC_KEY, {});
+    return {
+      enabled: typeof stored.enabled === "boolean" ? stored.enabled : DEFAULT_SYNC.enabled,
+      url: typeof stored.url === "string" && stored.url ? stored.url : DEFAULT_SYNC.url,
+      topic: typeof stored.topic === "string" && stored.topic ? stored.topic : DEFAULT_SYNC.topic,
+    };
+  },
+
+  patch(update: Partial<SyncSettings>): void {
+    writeJson(SYNC_KEY, { ...this.load(), ...update });
+  },
+};
+
 function numberOr(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }

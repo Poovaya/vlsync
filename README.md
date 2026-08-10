@@ -74,6 +74,99 @@ which is the point for arbitrary files on a local drive.
 | `N` | Next video |
 | `Esc` | Leave full screen, else back to the library |
 
+## Syncing across devices
+
+Playback state is shared over MQTT, so several screens can watch the same thing
+together. Click the broadcast icon in the control bar and turn it on — it is
+**off by default**, since it means talking to an external broker, and the choice
+is remembered.
+
+Defaults point at the same Mosquitto instance the existing vlsync client uses:
+
+| | |
+|---|---|
+| Broker | `wss://sync.drish-shel.com:443/mqtt` |
+| Topic | `vlsync/test` |
+
+Both are editable in the sync menu. Browsers can only speak MQTT over
+WebSockets, which is exactly what that Cloudflare tunnel already exposes, so no
+extra server is involved — the page talks to the broker directly.
+
+### What gets sent
+
+Outbound messages come from the **media element's own events** (`play`, `pause`,
+`seeked`, `ratechange`) rather than from the buttons. Every route that can move
+the playhead — a click, a keyboard shortcut, dragging the scrubber, ±10s, or a
+remote command — ends up setting properties on that element, so listening there
+catches all of them and cannot fall out of step with the UI. Scrubbing fires
+`seeked` continuously, so seeks are debounced into one message per drag.
+
+While playing, a heartbeat every 10s catches gradual drift. A receiver only
+corrects if it is more than 1s out, and then waits 3s before correcting again,
+so two devices settle instead of chasing each other.
+
+### Wire format
+
+Compatible with the existing Python client (`vlsync/backend/mqtt_client.py`),
+which reads `action` (play=true, pause=false, seek=null) and `media_time`:
+
+```json
+{
+  "sender": "vsync-web-a1b2c3d4",
+  "action": true, "media_time": 42, "ping": 9,
+
+  "event": "play", "position": 42.512, "paused": false,
+  "rate": 1.5, "media": "Episode.mkv"
+}
+```
+
+The first row is what existing devices read; the second is added detail they
+ignore. Inbound, `position` is preferred over `media_time` when present, so old
+and new clients interoperate at whatever precision each supports.
+
+`media` is the bare filename — a device refuses to sync against a different
+video rather than seeking your film to a position from someone else's.
+
+### Latency
+
+A message describes where the sender *was*, so a receiver advances it by the
+time spent in flight before seeking.
+
+That delay is deliberately **not** computed from timestamps in the message:
+nothing guarantees two machines' clocks agree, and a few seconds of skew would
+corrupt every correction. Instead each device measures its own round trip to the
+broker — we subscribe to the topic we publish on, so our own messages come back
+and the delay is directly observable — and publishes half of it as `ping`,
+matching what vlsync's `pinger.py` reports. Compensation is the sender's `ping`
+plus the receiver's own estimate, clamped to 5s.
+
+### Untrusted input
+
+The topic is a shared room with no authentication, and vlsync's own test scripts
+publish plain strings to it, so **every inbound message is treated as hostile**.
+Anything unparseable is dropped; anything parseable is clamped before it reaches
+the media element:
+
+- Non-JSON, JSON scalars/arrays, missing `sender` or position — ignored outright
+- Position clamped to `[0, duration]`; a negative one would otherwise be stored
+  and leave the playhead somewhere it can never play from
+- Rate clamped to `[0.0625, 16]`; outside that Chrome throws `NotSupportedError`
+- Latency compensation clamped to 5s regardless of the sender's `ping`
+- The whole apply step is wrapped, so one bad message cannot take down the loop
+- `media` is truncated before it reaches the UI
+
+Anyone on the topic can still control playback — use a private topic if that
+matters. The clamping bounds what a bad message can do, not who can send one.
+
+### Testing without a second screen
+
+```bash
+node scripts/sync-monitor.ts                 # watch the topic
+node scripts/sync-monitor.ts pause 123.5     # act as another device
+node scripts/sync-monitor.ts play 45 --rate 1.5
+node scripts/sync-fuzz.ts                    # 19 malformed/hostile payloads
+```
+
 ## Subtitles
 
 Sidecar files next to the video are picked up automatically:
@@ -159,8 +252,12 @@ server/
 shared/types.ts   the contract between the two halves
 src/
   player/         Player, Scrubber, ThumbnailPreview, VolumeControl, menus
+  sync/           MQTT transport, wire format, playback sync controller
   launcher/       file chooser
   storage.ts      resume positions + preferences
+scripts/
+  probe.ts        print a file's real codecs
+  sync-monitor.ts watch or inject sync messages
 ```
 
 ### Notes on two things that are easy to get wrong
@@ -180,11 +277,19 @@ size limit — the media element then sits at `readyState 0` forever, emitting
 server bug, which is what makes it expensive to chase. The data is on local disk
 anyway, so re-reading costs nothing.
 
-**Two elements, one URL.** The scrub-preview video must not share a URL with the
-playing video: they end up sharing Chrome's media buffer for that resource, and
-the preview's constant seeking can stall playback on a cold load. The preview
-gets `?preview=1` (server-side files) or a second object URL (local files) so
-each element has its own buffer.
+**Two elements, one URL.** No two media elements may share a URL. Chrome keys
+its media buffer on the URL and shares it across the whole profile, so the
+player and its scrub preview — or the same file open in two tabs, which is
+routine once you are syncing — fight over one buffer and can wedge at
+`readyState 0` with no error. Each element therefore gets a unique `?c=<nonce>`
+per load; the server ignores the parameter, so it only separates cache entries.
+
+**Wedged media state looks like a server bug.** If video stalls at
+`readyState 0` with no error while `fetch()` of the same URL returns 206
+instantly, check Chrome's own player by opening the stream URL directly. If that
+also hangs, the browser's media stack is exhausted — usually from many media
+elements created and never torn down — and only a restart clears it. Nothing
+server-side will fix it.
 
 ### Security
 

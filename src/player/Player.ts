@@ -671,13 +671,28 @@ export class Player {
   }
 
   private async togglePip(): Promise<void> {
-    if (!document.pictureInPictureEnabled) {
-      this.showToast("This browser does not support the miniplayer.", 2500);
-      return;
-    }
     try {
-      if (document.pictureInPictureElement) await document.exitPictureInPicture();
-      else await this.video.requestPictureInPicture();
+      if (document.pictureInPictureEnabled) {
+        if (document.pictureInPictureElement) await document.exitPictureInPicture();
+        else await this.video.requestPictureInPicture();
+        return;
+      }
+
+      // Safari has picture-in-picture but not the standard API; without this
+      // branch the button reports "unsupported" on a browser that supports it.
+      const webkit = this.video as HTMLVideoElement & {
+        webkitSupportsPresentationMode?: (mode: string) => boolean;
+        webkitSetPresentationMode?: (mode: string) => void;
+        webkitPresentationMode?: string;
+      };
+
+      if (webkit.webkitSupportsPresentationMode?.("picture-in-picture")) {
+        const active = webkit.webkitPresentationMode === "picture-in-picture";
+        webkit.webkitSetPresentationMode?.(active ? "inline" : "picture-in-picture");
+        return;
+      }
+
+      this.showToast("This browser does not support the miniplayer.", 2500);
     } catch {
       this.showToast("Miniplayer is unavailable for this video.", 2500);
     }

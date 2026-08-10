@@ -9,6 +9,10 @@ file chooser in front of it is deliberately plain.
 
 ## Running it
 
+Needs **Node 22.18+** (the server runs its TypeScript directly, via the type
+stripping Node enables by default from that version). Works on macOS, Windows
+and Linux.
+
 ```bash
 npm install
 npm run dev
@@ -18,6 +22,26 @@ Then open <http://localhost:5173>.
 
 `npm run dev` starts two processes: the media server on `127.0.0.1:8787` and
 Vite on `5173`, with `/api/*` proxied to the server.
+
+### On macOS
+
+Nothing platform-specific to do — paths, media roots and the traversal guard all
+go through Node's `path`, and `~` expands.
+
+Browser choice matters more than the OS:
+
+- **Chrome / Firefox on macOS** behave exactly as on Windows, since it is the
+  same engine. Everything documented here applies unchanged.
+- **Safari** decodes more than Chrome does, so files that are silent or black in
+  Chrome often just work — notably **AC-3 / E-AC-3 (`DDP5.1`) audio and HEVC**,
+  which macOS supports natively. It is also the one browser here that exposes
+  `audioTracks`, so the audio column in the subtitles menu actually appears and
+  can switch tracks. It has no MKV or WebM/VP9 support to speak of, though, so
+  those go the other way.
+
+Because that support genuinely differs per browser, the player asks *your*
+browser what it can decode rather than assuming — the same file can be fine in
+Safari and silent in Chrome on the same Mac.
 
 ### Pointing it at your media
 

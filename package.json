@@ -4,6 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "description": "A Netflix-style web video player for files on your local drive.",
+  "engines": {
+    "//": "The server runs .ts directly via Node's type stripping, on by default from 22.18.",
+    "node": ">=22.18"
+  },
   "scripts": {
     "dev": "concurrently -n server,web -c magenta,cyan \"npm:dev:server\" \"npm:dev:web\"",
     "dev:server": "node --watch server/index.ts",
